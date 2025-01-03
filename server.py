@@ -1,16 +1,28 @@
 from flask import Flask, request, jsonify
-import telebot
+from telethon import TelegramClient, errors
+import asyncio
 import random
 
-# Учетные данные вашего Telegram-бота
-bot_token = "7399305399:AAFceK2YHpwTRZsbZsuQjC7x7jZWwQeN47U"  # Замените на ваш API токен
-bot = telebot.TeleBot(bot_token)
+# Учетные данные для Telethon
+api_id = 21814411  # Ваш API ID
+api_hash = '7af506bc5633b7dc324b539ee4f97f1b'  # Ваш API Hash
+phone_number = '+447405085904'  # Ваш номер телефона (без пробелов)
 
 # Flask-приложение
 app = Flask(__name__)
 
 # Хранилище кодов подтверждения
 verification_codes = {}
+
+# Инициализация Telethon клиента
+client = TelegramClient('user_session', api_id, api_hash)
+
+async def start_client():
+    if not await client.is_user_authorized():
+        await client.start(phone=phone_number)
+
+# Инициализируем клиент при запуске
+asyncio.run(start_client())
 
 @app.route('/send_code', methods=['POST'])
 def send_code():
@@ -25,11 +37,24 @@ def send_code():
     verification_codes[phone] = code
 
     try:
-        # Отправка сообщения с кодом подтверждения
-        bot.send_message(phone, f"Ваш код подтверждения: {code}")
+        # Отправка сообщения
+        asyncio.run(send_message(phone, code))
         return jsonify({"status": "Код отправлен"})
     except Exception as e:
         return jsonify({"status": "Ошибка", "message": str(e)}), 500
+
+async def send_message(phone, code):
+    try:
+        user = await client.get_entity(phone)
+        await client.send_message(user, f"Ваш код подтверждения: {code}")
+    except errors.FloodWaitError as e:
+        raise Exception(f"Слишком много запросов. Подождите {e.seconds} секунд.")
+    except errors.UserPrivacyRestrictedError:
+        raise Exception("Пользователь ограничил получение сообщений.")
+    except errors.PeerIdInvalidError:
+        raise Exception("Неверный идентификатор пользователя.")
+    except Exception as e:
+        raise Exception(f"Ошибка: {e}")
 
 @app.route('/verify_code', methods=['POST'])
 def verify_code():
