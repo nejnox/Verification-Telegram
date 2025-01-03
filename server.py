@@ -17,6 +17,15 @@ verification_codes = {}
 # Создаем клиент Telethon
 client = TelegramClient('session_name', api_id, api_hash)
 
+# Асинхронная инициализация Telethon
+async def start_client():
+    await client.connect()
+    if not await client.is_user_authorized():
+        raise Exception("Telegram client is not authorized. Please log in manually.")
+
+# Инициализируем клиент перед запуском Flask
+asyncio.run(start_client())
+
 @app.route('/send_code', methods=['POST'])
 def send_code():
     data = request.json
@@ -40,9 +49,8 @@ def send_code():
 
 async def send_telegram_message(phone, code):
     # Отправка сообщения через Telethon
-    async with client:
-        user = await client.get_entity(phone)
-        await client.send_message(user, f"Ваш код подтверждения: {code}")
+    user = await client.get_entity(phone)
+    await client.send_message(user, f"Ваш код подтверждения: {code}")
 
 @app.route('/verify_code', methods=['POST'])
 def verify_code():
