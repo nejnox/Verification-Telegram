@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
-from telethon.sync import TelegramClient
+from telethon import TelegramClient
 from telethon.errors import PeerIdInvalidError
+import asyncio
 import random
 
 # Учетные данные для Telethon
@@ -12,6 +13,9 @@ app = Flask(__name__)
 
 # Хранилище кодов подтверждения
 verification_codes = {}
+
+# Создаем клиент Telethon
+client = TelegramClient('session_name', api_id, api_hash)
 
 @app.route('/send_code', methods=['POST'])
 def send_code():
@@ -26,16 +30,19 @@ def send_code():
     verification_codes[phone] = code
 
     try:
-        # Подключение к Telegram через Telethon
-        with TelegramClient('session_name', api_id, api_hash) as client:
-            user = client.get_entity(phone)
-            client.send_message(user, f"Ваш код подтверждения: {code}")
-
+        # Асинхронный вызов через asyncio
+        asyncio.run(send_telegram_message(phone, code))
         return jsonify({"status": "Код отправлен"})
     except PeerIdInvalidError:
         return jsonify({"status": "Ошибка", "message": "Пользователь с таким номером телефона не найден в Telegram"}), 400
     except Exception as e:
         return jsonify({"status": "Ошибка", "message": str(e)}), 500
+
+async def send_telegram_message(phone, code):
+    # Отправка сообщения через Telethon
+    async with client:
+        user = await client.get_entity(phone)
+        await client.send_message(user, f"Ваш код подтверждения: {code}")
 
 @app.route('/verify_code', methods=['POST'])
 def verify_code():
